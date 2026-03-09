@@ -2,27 +2,32 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 data = np.loadtxt("walsoorden2004-2024.csv", skiprows=1, delimiter=";", dtype=str)
-# print(data)
 
-dt = 1
-
+dt = 10 # In minutes
 t = data[:,0].astype(int)
-f = data[:,2].astype(int)
-print(f)
-N = len(f)
-M = 2**11
-# w = np.arange((M//2)+1)*2*np.pi/M/dt
-fhat = np.fft.fft(f,N)*dt
-# print(fhat)
-# exit(0)
-fhat = fhat[0:N]
-print(fhat)
+tide_raw = data[:,2].astype(int)
 
-plt.plot(t/(2*np.pi), abs(fhat))
-plt.rc('text', usetex=True)
-# plt.rcParams['text.latex.preamble'] = [r'\usepackage{fourier}'] # optional
+# Remove invalid measurements
+mask = (tide_raw != 999999999)
+tide = tide_raw[mask]
+t = t[mask]
 
-plt.xlabel('frequency')
-plt.ylabel('unit')
+# Make sure mean is 0
+tide = tide - np.mean(tide)
+N = len(tide)
+M = 2**int(np.ceil(np.log2(N)))
+
+fhat = np.fft.fft(tide,M)*dt   
+fhat = fhat[0:M//2+1] # only take positive frequencies
+
+freq_mins = np.arange(M//2 + 1)/(M*dt)
+period_hours = (1 / freq_mins) / 60
+
+
+plt.plot(period_hours, abs(fhat))
+plt.xlim(0, 100)
+plt.xlabel('Period (Hours)')
+plt.ylabel('Amplitude')
 plt.grid()
 plt.show()
+
