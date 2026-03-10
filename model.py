@@ -1,34 +1,21 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from datetime import datetime
+from plot import *
+import model_io as io
 
 dt = 10 # In minutes
 
-def read_data(file):
-    data = np.loadtxt(file, skiprows=1, delimiter=";", dtype=str)
-    
-    indices = data[:,0].astype(int)
-    times = None
-    # Parsing time is extremely slow, so only enable it if you are actually use it
-    # parse = np.vectorize(lambda x: datetime.strptime(x, "%Y-%m-%d %H:%M:%S"))
-    # times = parse(data[:,1])
-
-    tide_raw = data[:,2].astype(int)
-    # Remove invalid measurements
-    mask = (tide_raw != 999999999)
-    tide = tide_raw[mask]
-    indices = indices[mask]
-    return indices, times, tide
 
 def frequency_analysis(signal):
+    """Performs a frequency analysis of a given signal using FFT"""
     mean = np.mean(signal)
-    print(f'mean = {mean}')
     # Make sure mean is 0. I found this the easiest, as we dont have to deal 
     # with the zero frequency with an unusual spike
     signal = signal - mean
 
     N = len(signal)
-    M = 2**int(np.ceil(np.log2(N)))
+    # M = 2**int(np.ceil(np.log2(N)))
+    M = N
 
     # Perform FFT
     fhat = np.fft.fft(signal, M) 
@@ -39,18 +26,9 @@ def frequency_analysis(signal):
     freq_mins = np.arange(M//2 + 1)/(M*dt)
     return freq_mins, amplitudes, arguments, mean
 
-def plot_frequencies(frequencies, amplitudes):
-    period_hours = (1 / frequencies) / 60
-    plt.plot(period_hours, amplitudes)
-    plt.xlim(0, 100)
-    plt.xlabel('Period (Hours)')
-    plt.ylabel('Amplitude')
-    plt.grid()
-    plt.show()
-
-def build_prediction_model(frequencies, amplitudes, arguments, mean):
+def build_model(frequencies, amplitudes, arguments, mean):
+    """Creates a model of the given frequencies, amplitudes and arguments of the FFT, and mean of the signal"""
     num_waves = 1000
-
     # Neat little trick i found on stackoverflow (i dont entirely understand how it works):
     # Selects the K indices with the highest amplitudes
     # Runs in O(n) instead of O(nlog(n)), which would be complexity of sorting the array
@@ -63,18 +41,40 @@ def build_prediction_model(frequencies, amplitudes, arguments, mean):
 
     return (omegas, amplitudes, arguments, mean)
 
-def predict(model, t):
+def predict(model, k, dt):
+    """Predicts the first k values using the given model"""
+    t = np.arange(k)*dt
     w, A, phi, mu = model # omegas, amplitudes, arguments (angles)
-    # Add back the mean we have subtracted from the start
+    return mu + np.sum(A[:, np.newaxis] * np.cos(w[:, np.newaxis] * t + phi[:, np.newaxis]), axis=0)
+    
+def predict_single(model, t):
+    """Predicts the signal for a given time t"""
+    w, A, phi, mu = model # omegas, amplitudes, arguments (angles)
     return mu + np.sum(A*np.cos(w*t + phi))
 
+def compute_accuracy(model, original, dt, k):
+    """Computes the Mean Squared Error of the prediction model."""
+    assert k <= len(original)
+    prediction = predict(model, k, dt)
+    original = original[:k]
+    errors = prediction - original
+    rmse = np.sqrt(np.mean(errors**2))
+    return rmse
+
 def main():
-    indices, times, tide = read_data("walsoorden2004-2024.csv")
-    freq_mins, amplitudes, arguments, mean = frequency_analysis(tide)
+    indices, times, tide = io.read_data("walsoorden2004-2024.csv")
+    # freq_mins, amplitudes, arguments, mean = frequency_analysis(tide)
     # plot_frequencies(freq_mins, amplitudes)
-    model = build_prediction_model(freq_mins, amplitudes, arguments, mean)
-    t=0
-    print(f't={t}: {predict(model, t)}')
+    # model = build_model(freq_mins, amplitudes, arguments, mean)
+    model = io.load_model()
+    mean = model[3]
+    print(f"RMSE = {compute_accuracy(model, mean + tide, dt, 10000)}")
+
+    # io.save_model(model)
+
+    # prediction_size = 2000
+    # prediction = predict(model, prediction_size, dt)
+    # plot_comparison(mean + tide, prediction, prediction_size)
 
 
 # Run script
