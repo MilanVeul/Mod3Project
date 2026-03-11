@@ -5,7 +5,6 @@ import model_io as io
 
 dt = 10 # In minutes
 
-
 def frequency_analysis(signal):
     """Performs a frequency analysis of a given signal using FFT"""
     mean = np.mean(signal)
@@ -53,7 +52,7 @@ def predict_single(model, t):
     return mu + np.sum(A*np.cos(w*t + phi))
 
 def compute_accuracy(model, original, dt, k):
-    """Computes the Mean Squared Error of the prediction model."""
+    """Computes the Root Mean Squared Error of the prediction model."""
     assert k <= len(original)
     prediction = predict(model, k, dt)
     original = original[:k]
@@ -63,11 +62,11 @@ def compute_accuracy(model, original, dt, k):
 
 def main():
     indices, times, tide = io.read_data("walsoorden2004-2024.csv")
-    # freq_mins, amplitudes, arguments, mean = frequency_analysis(tide)
-    # plot_frequencies(freq_mins, amplitudes)
-    # model = build_model(freq_mins, amplitudes, arguments, mean)
+    freq_mins, amplitudes, arguments, mean = frequency_analysis(tide)
+    plot_frequencies(freq_mins, amplitudes)
+    model = build_model(freq_mins, amplitudes, arguments, mean)
     model = io.load_model()
-    mean = model[3]
+    # mean = model[3]
     print(f"RMSE = {compute_accuracy(model, mean + tide, dt, 10000)}")
 
     # io.save_model(model)
