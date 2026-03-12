@@ -13,8 +13,11 @@ def frequency_analysis(signal):
     signal = signal - mean
 
     N = len(signal)
-    # M = 2**int(np.ceil(np.log2(N)))
-    M = N
+    M = 2**int(np.ceil(np.log2(N)))
+
+    # Apply window
+    window = np.hanning(N)
+    signal = signal * window 
 
     # Perform FFT
     fhat = np.fft.fft(signal, M) 
@@ -64,16 +67,8 @@ def main():
     indices, times, tide = io.read_data("walsoorden2004-2024.csv")
     freq_mins, amplitudes, arguments, mean = frequency_analysis(tide)
     plot_frequencies(freq_mins, amplitudes)
-    model = build_model(freq_mins, amplitudes, arguments, mean)
-    model = io.load_model()
-    # mean = model[3]
-    print(f"RMSE = {compute_accuracy(model, mean + tide, dt, 10000)}")
-
-    # io.save_model(model)
-
-    # prediction_size = 2000
-    # prediction = predict(model, prediction_size, dt)
-    # plot_comparison(mean + tide, prediction, prediction_size)
+    # model = build_model(freq_mins, amplitudes, arguments, mean)
+     
 
 
 # Run script

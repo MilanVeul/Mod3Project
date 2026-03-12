@@ -6,7 +6,7 @@ def read_data(file):
     
     indices = data[:,0].astype(int)
     times = None
-    # Parsing time is extremely slow, so only enable it if you are actually use it
+    # Parsing time is extremely slow, so only enable it if you are actually using it
     # parse = np.vectorize(lambda x: datetime.strptime(x, "%Y-%m-%d %H:%M:%S"))
     # times = parse(data[:,1])
 
@@ -14,8 +14,19 @@ def read_data(file):
     # Remove invalid measurements
     mask = (tide_raw != 999999999)
     tide = tide_raw[mask]
+
     indices = indices[mask]
     return indices, times, tide
+
+def generate_cosine(N):
+    indices = np.arange(N)
+    times = None
+
+    A = 5
+    f = 1
+    phi = 0
+    values = A*np.cos(f*indices + phi)
+    return indices, times, values
 
 def save_model(model, filename="models/model.npz"):
     w, A, phi, mu = model
