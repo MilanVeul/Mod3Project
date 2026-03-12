@@ -10,11 +10,29 @@ def read_data(file):
     # parse = np.vectorize(lambda x: datetime.strptime(x, "%Y-%m-%d %H:%M:%S"))
     # times = parse(data[:,1])
 
-    tide_raw = data[:,2].astype(int)
+    tide = data[:,2].astype(int)
+    for i, x in enumerate(tide):
+        if x != 999999999: continue
+        if i == 0:
+            data[i] = data[i+1]
+            continue
+
+        next_valid_index = -1
+        for j in range(i+1, len(tide)):
+            if tide[j] != 999999999:
+                next_valid_index = j
+                break
+        if next_valid_index == -1:
+            data[i] = data[i + 1]
+            continue
+
+        spacing = next_valid_index - (i-1)
+        tide[i] = (tide[next_valid_index]*(1/spacing) + tide[i-1]*(1-(1/spacing)))
+
     # Remove invalid measurements
-    mask = (tide_raw != 999999999)
-    tide = tide_raw[mask]
-    indices = indices[mask]
+    # mask = (tide != 999999999)
+    # tide = tide[mask]
+    # indices = indices[mask]
     return indices, times, tide
 
 def save_model(model, filename="models/model.npz"):
