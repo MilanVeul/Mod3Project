@@ -30,15 +30,18 @@ def read_data(file):
         tide[i] = (tide[next_valid_index]*(1/spacing) + tide[i-1]*(1-(1/spacing)))
 
     # Remove invalid measurements
-    # mask = (tide_raw != 999999999)
-    # tide = tide_raw[mask]
+    # mask = (tide != 999999999)
+    # tide = tide[mask]
     # indices = indices[mask]
+
+    # Set invalid measurements to 0
+    # mask = (tide == 999999999)
+    # tide[mask] = 0
     return indices, times, tide
 
 def generate_cosine(N):
     indices = np.arange(N)
     times = None
-
     A = 5
     f = 1
     phi = 0
