@@ -15,11 +15,14 @@ def frequency_analysis(signal):
 
     N = len(signal)
     # M = 2**int(np.ceil(np.log2(N)))
+    # M = 2**10
     M = N
 
     # Apply window
-    # window = np.hanning(N)
-    # signal = signal * window 
+    windowing = False
+    if windowing:
+        window = np.hanning(N)
+        signal = signal * window 
 
     # Perform FFT
     fhat = np.fft.fft(signal, M) 
@@ -28,6 +31,9 @@ def frequency_analysis(signal):
     amplitudes = (2/N * abs(fhat)) # multiply by two to make up for negative counterpart
     arguments = np.angle(fhat)
     freq_mins = np.arange(M//2 + 1)/(M*dt)
+
+    if windowing: # Windowing halves the amplitudes
+        amplitudes *= 2
     return freq_mins, amplitudes, arguments, mean
 
 ###############################
@@ -83,9 +89,16 @@ def compute_accuracy(model, actual, k):
 
 def main():
     indices, times, tide = io.read_data("walsoorden2004-2024.csv")
+    
+    # indices, times, tide = io.generate_cosine(10000, dt)
+
     freq_mins, amplitudes, arguments, mean = frequency_analysis(tide)
-    # plot_frequencies(freq_mins, amplitudes)
+    start,stop = (0, 1)
+    # plot_frequencies(freq_mins, amplitudes, start, stop)
     model = build_model(freq_mins, amplitudes, arguments, mean)
+
+    prediction = predict_array(model, np.arange(0, 500)*dt)
+    plot_comparison((mean + tide)[0:500], prediction)
 
     print(f"RMSE: {compute_accuracy(model, mean + tide, 100000):.3f}")
 

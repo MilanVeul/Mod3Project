@@ -1,11 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plot_frequencies(frequencies, amplitudes):
-    period_hours = (1 / frequencies) / 60
-    plt.plot(period_hours, amplitudes)
-    plt.xlim(0, 100)
-    plt.xlabel('Period (Hours)')
+def plot_frequencies(frequencies, amplitudes, start=-1, stop=-1):
+    # period_hours = (1 / frequencies) / 60
+    plt.plot(frequencies, amplitudes)
+    if start != -1:
+        plt.xlim(start, stop)
+    plt.xlabel('Frequency')
     plt.ylabel('Amplitude')
     plt.grid()
     plt.show()

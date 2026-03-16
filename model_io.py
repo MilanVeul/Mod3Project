@@ -3,6 +3,7 @@ import numpy as np
 def read_data(file):
     """Reads a given csv file and extracts the indices, timestamps and values."""
     data = np.loadtxt(file, skiprows=1, delimiter=";", dtype=str)
+    # data = data[:250000]
     
     indices = data[:,0].astype(int)
     times = None
@@ -39,13 +40,13 @@ def read_data(file):
     # tide[mask] = 0
     return indices, times, tide
 
-def generate_cosine(N):
+def generate_cosine(N, dt):
+    times = np.arange(N)*dt
     indices = np.arange(N)
-    times = None
-    A = 5
-    f = 1
+    A = 100
+    f = 1/50
     phi = 0
-    values = A*np.cos(f*indices + phi)
+    values = A*np.cos(2*np.pi*f*times + phi)
     return indices, times, values
 
 def save_model(model, filename="models/model.npz"):
