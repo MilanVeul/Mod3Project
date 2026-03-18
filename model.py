@@ -87,6 +87,34 @@ def compute_accuracy(model, actual, k):
     rmse = np.sqrt(np.mean(errors**2))
     return rmse
 
+def above_150cm (data, time):
+    currently_above = False
+    intervals = []
+    x1, x2 = -1
+    for i, x in enumerate(data):
+        if currently_above:
+            if x < 150:
+                x2 = data[i-1]
+                currently_above = False
+                intervals += [x1,x2]
+        else:
+            if x >= 150:
+                x1 = x
+                currently_above = True
+
+
+        if currently_above: 
+            x2 = data[-1]
+            intervals += [x1, x2]
+
+
+
+
+
+
+
+
+
 def main():
     indices, times, tide = io.read_data("walsoorden2004-2024.csv")
     
@@ -97,10 +125,11 @@ def main():
     # plot_frequencies(freq_mins, amplitudes, start, stop)
     model = build_model(freq_mins, amplitudes, arguments, mean)
 
-    prediction = predict_array(model, np.arange(0, 500)*dt)
-    plot_comparison((mean + tide)[0:500], prediction)
+    prediction = predict_array(model, np.arange(00000,2000)*dt)
+    plot_comparison((mean + tide)[00000:2000], prediction)
 
-    print(f"RMSE: {compute_accuracy(model, mean + tide, 100000):.3f}")
+    print(f"RMSE: {compute_accuracy(model, mean + tide, 10):.3f}")
+
 
 
 # Run script
