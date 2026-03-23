@@ -87,6 +87,46 @@ def rmse(model, actual, k):
     rmse = np.sqrt(np.mean(errors**2))
     return rmse
 
+def compute_spaced_accuracy(model, actual, dt, step=10, n=None):
+    """Computes RMSE using predict_single."""
+    if n is None:
+        n = len(actual)
+    rmse_values = []
+    for k in range(step, n+1, step):
+        errors = []
+        for i in range(k):
+            t = i * dt
+            prediction = predict_single(model, t)
+            errors.append(prediction - actual[i])
+        errors = np.array(errors)
+        rmse = np.sqrt(np.mean(errors**2))
+        rmse_values.append(rmse)
+    return rmse_values
+
+
+
+def above_150cm (data, time):
+    currently_above = False
+    intervals = []
+    x1, x2 = -1
+    for i, x in enumerate(data):
+        if currently_above:
+            if x < 150:
+                x2 = data[i-1]
+                currently_above = False
+                intervals += [x1,x2]
+        else:
+            if x >= 150:
+                x1 = x
+                currently_above = True
+
+        if currently_above:
+            x2 = data[-1]
+            intervals += [x1, x2]
+
+
+
+
 def main():
     indices, times, tide = io.read_data("walsoorden2004-2024.csv", 0)
     
