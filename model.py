@@ -2,7 +2,7 @@ import numpy as np
 from datetime import datetime
 from plot import *
 import model_io as io
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, windows
 
 dt = 10 # In minutes
 
@@ -15,11 +15,10 @@ def frequency_analysis(signal):
 
     N = len(signal)
     # M = 2**int(np.ceil(np.log2(N)))
-    # M = 2**10
     M = N
 
     # Apply window
-    windowing = False
+    windowing = True
     if windowing:
         window = np.hanning(N)
         signal = signal * window 
@@ -32,7 +31,7 @@ def frequency_analysis(signal):
     arguments = np.angle(fhat)
     freq_mins = np.arange(M//2 + 1)/(M*dt)
 
-    if windowing: # Windowing halves the amplitudes
+    if windowing:  #Windowing halves the amplitudes
         amplitudes *= 2
     return freq_mins, amplitudes, arguments, mean
 
@@ -54,11 +53,12 @@ def get_peaks(amplitudes, N):
 def build_model(frequencies, amplitudes, arguments, mean):
     """Creates a model of the given frequencies, amplitudes and arguments of the FFT, and mean of the signal"""
     
-    indices = get_peaks(amplitudes, 1000)
+    indices = get_peaks(amplitudes, 50)
 
     frequencies = frequencies[indices]
     amplitudes = amplitudes[indices]
     arguments = arguments[indices]
+    
     omegas = 2*np.pi*frequencies
 
     return (omegas, amplitudes, arguments, mean)
@@ -75,32 +75,32 @@ def predict_array(model, t_values):
     
     return mu + np.sum(A * np.cos(w * t_col + phi), axis=1)
 
-def compute_accuracy(model, actual, k):
+def rmse(model, actual, k):
     """Computes the Root Mean Squared Error of the prediction model."""
     assert k <= len(actual)
     N = len(actual)
     indices = np.linspace(0, N-1, k).astype(int)
 
-    prediction = predict_array(model, indices*dt)
+    prediction = predict_array(model, (indices*dt))
     actual_subsamples = actual[indices]
     errors = prediction - actual_subsamples
     rmse = np.sqrt(np.mean(errors**2))
     return rmse
 
 def main():
-    indices, times, tide = io.read_data("walsoorden2004-2024.csv")
+    indices, times, tide = io.read_data("walsoorden2004-2024.csv", 0)
     
     # indices, times, tide = io.generate_cosine(10000, dt)
 
     freq_mins, amplitudes, arguments, mean = frequency_analysis(tide)
-    start,stop = (0, 1)
+    # start,stop = (0, 1)
     # plot_frequencies(freq_mins, amplitudes, start, stop)
     model = build_model(freq_mins, amplitudes, arguments, mean)
 
-    prediction = predict_array(model, np.arange(0, 500)*dt)
-    plot_comparison((mean + tide)[0:500], prediction)
+    prediction = predict_array(model, (np.arange(15000, 16000)*dt))
+    plot_comparison(np.arange(15000, 16000), (mean + tide)[15000:16000], prediction)
 
-    print(f"RMSE: {compute_accuracy(model, mean + tide, 100000):.3f}")
+    print(f"RMSE: {rmse(model, mean + tide, 10000):.3f}")
 
 
 # Run script

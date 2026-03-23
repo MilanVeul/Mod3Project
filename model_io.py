@@ -1,17 +1,18 @@
 import numpy as np
 
-def read_data(file):
+def read_data(file, start):
     """Reads a given csv file and extracts the indices, timestamps and values."""
     data = np.loadtxt(file, skiprows=1, delimiter=";", dtype=str)
-    # data = data[:250000]
-    
+
     indices = data[:,0].astype(int)
     times = None
     # Parsing time is extremely slow, so only enable it if you are actually using it
     # parse = np.vectorize(lambda x: datetime.strptime(x, "%Y-%m-%d %H:%M:%S"))
-    # times = parse(data[:,1])
+    # times = parse(data[:start,1])
 
     tide = data[:,2].astype(int)
+
+    
     for i, x in enumerate(tide):
         if x != 999999999: continue
         if i == 0:
