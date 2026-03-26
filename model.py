@@ -105,25 +105,27 @@ def compute_spaced_accuracy(model, actual, dt, step=10, n=None):
 
 
 
-def above_150cm (data, time):
+def above_150 (data):
     currently_above = False
     intervals = []
-    x1, x2 = -1
-    for i, x in enumerate(data):
+    x1 = -1
+    x2 = -1
+    for t, x in enumerate(data):
         if currently_above:
             if x < 150:
-                x2 = data[i-1]
+                x2 = t-1
                 currently_above = False
-                intervals += [x1,x2]
+                intervals.append([x1,x2])
         else:
             if x >= 150:
-                x1 = x
+                x1 = t
                 currently_above = True
 
-        if currently_above:
-            x2 = data[-1]
-            intervals += [x1, x2]
-
+    if currently_above:
+        x2 = len(data)-1
+        intervals.append([x1, x2])
+    # x1 and x2 /6  = hours
+    return intervals
 
 
 
@@ -141,6 +143,7 @@ def main():
     plot_comparison(np.arange(15000, 16000), (mean + tide)[15000:16000], prediction)
 
     print(f"RMSE: {rmse(model, mean + tide, 10000):.3f}")
+    print(f"Intervals{above_150(tide)}")
 
 
 # Run script
