@@ -1,6 +1,6 @@
 import numpy as np
 
-def read_data(file, start):
+def read_data(file):
     """Reads a given csv file and extracts the indices, timestamps and values."""
     data = np.loadtxt(file, skiprows=1, delimiter=";", dtype=str)
 
@@ -12,7 +12,7 @@ def read_data(file, start):
 
     tide = data[:,2].astype(int)
 
-    
+
     for i, x in enumerate(tide):
         if x != 999999999: continue
         if i == 0:

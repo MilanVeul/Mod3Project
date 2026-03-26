@@ -3,6 +3,7 @@ from datetime import datetime
 from plot import *
 import model_io as io
 from scipy.signal import find_peaks, windows
+from multiprocessing import Process
 
 dt = 10 # In minutes
 
@@ -15,7 +16,8 @@ def frequency_analysis(signal):
 
     N = len(signal)
     # M = 2**int(np.ceil(np.log2(N)))
-    M = N
+    M = 2**25
+    # M = N
 
     # Apply window
     windowing = True
@@ -53,15 +55,21 @@ def get_peaks(amplitudes, N):
 def build_model(frequencies, amplitudes, arguments, mean):
     """Creates a model of the given frequencies, amplitudes and arguments of the FFT, and mean of the signal"""
     
-    indices = get_peaks(amplitudes, 50)
+    indices = get_peaks(amplitudes, 100)
 
-    frequencies = frequencies[indices]
-    amplitudes = amplitudes[indices]
-    arguments = arguments[indices]
+    selected_frequencies = frequencies[indices]
+    selected_amplitudes = amplitudes[indices]
+    selected_arguments = arguments[indices]
+    omegas = 2*np.pi*selected_frequencies
     
-    omegas = 2*np.pi*frequencies
+    # plt.plot(frequencies, amplitudes)
+    # plt.scatter(selected_frequencies, selected_amplitudes, color='red')
+    # plt.xlabel('Frequency')
+    # plt.ylabel('Amplitude')
+    # plt.grid()
+    # plt.show()
 
-    return (omegas, amplitudes, arguments, mean)
+    return (omegas, selected_amplitudes, selected_arguments, mean)
     
 ###############################
 def predict_single(model, t):
@@ -103,38 +111,35 @@ def compute_spaced_accuracy(model, actual, dt, step=10, n=None):
         rmse_values.append(rmse)
     return rmse_values
 
-
-
-def above_150cm (data, time):
+def above_150cm(data, time):
     currently_above = False
     intervals = []
-    x1, x2 = -1
+    t1, t2 = -1
     for i, x in enumerate(data):
         if currently_above:
             if x < 150:
-                x2 = data[i-1]
+                t2 = data[i-1]
                 currently_above = False
-                intervals += [x1,x2]
+                intervals += [time[i],time[i-1]]
         else:
             if x >= 150:
-                x1 = x
+                t1 = x
                 currently_above = True
 
         if currently_above:
-            x2 = data[-1]
-            intervals += [x1, x2]
-
-
-
+            t2 = data[-1]
+            intervals += [t1, t2]
+    return intervals
 
 def main():
-    indices, times, tide = io.read_data("walsoorden2004-2024.csv", 0)
+    indices, times, tide = io.read_data("walsoorden2004-2024.csv")
     
     # indices, times, tide = io.generate_cosine(10000, dt)
 
     freq_mins, amplitudes, arguments, mean = frequency_analysis(tide)
-    # start,stop = (0, 1)
+    # start,stop = (0.0013415, 0.0013422)
     # plot_frequencies(freq_mins, amplitudes, start, stop)
+
     model = build_model(freq_mins, amplitudes, arguments, mean)
 
     prediction = predict_array(model, (np.arange(15000, 16000)*dt))
