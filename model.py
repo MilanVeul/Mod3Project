@@ -1,41 +1,116 @@
 import numpy as np
-from datetime import datetime
+import datetime
 from plot import *
 import model_io as io
-from scipy.signal import find_peaks, windows
-from multiprocessing import Process
+from scipy.signal import find_peaks
 
 dt = 10 # In minutes
 
-def frequency_analysis(signal):
-    """Performs a frequency analysis of a given signal using FFT"""
-    mean = np.mean(signal)
-    # Make sure mean is 0. I found this the easiest, as we dont have to deal 
-    # with the zero frequency with an unusual spike
-    signal = signal - mean
+class TideModel:
+    signal = 0
+    validation_signal = 0
+    signal_mean = 0
 
-    N = len(signal)
-    # M = 2**int(np.ceil(np.log2(N)))
-    M = 2**25
-    # M = N
+    trainings_interval = []
+    validation_interval = []
 
-    # Apply window
-    windowing = True
-    if windowing:
-        window = np.hanning(N)
-        signal = signal * window 
+    start_time: datetime.datetime = None
+    windowing_enabled = False
 
-    # Perform FFT
-    fhat = np.fft.fft(signal, M) 
-    fhat = fhat[0:M//2+1] # only take positive frequencies
-    # Extract relevant quantities
-    amplitudes = (2/N * abs(fhat)) # multiply by two to make up for negative counterpart
-    arguments = np.angle(fhat)
-    freq_mins = np.arange(M//2 + 1)/(M*dt)
+    frequencies = None
+    amplitudes = None
+    arguments = None
 
-    if windowing:  #Windowing halves the amplitudes
-        amplitudes *= 2
-    return freq_mins, amplitudes, arguments, mean
+    def __init__(self, total_signal, start_time: datetime.datetime, training_ratio, windowing=False):
+        split_index = int(len(total_signal) * training_ratio)
+        self.signal = total_signal[:split_index]
+        self.validation_signal = total_signal[split_index:]
+
+        self.validation_interval = [split_index, len(total_signal)]
+        self.trainings_interval = [0, split_index]
+
+        self.start_time = start_time
+
+        self.windowing_enabled = windowing
+        self.frequency_analysis()
+        self.build_model()
+
+    def get_signal(self):
+        return self.signal + self.signal_mean
+    def get_total_signal(self):
+        return np.concatenate((self.get_signal(), self.validation_signal))
+
+    def frequency_analysis(self):
+        """Performs a frequency analysis of a given signal using FFT"""
+        self.signal_mean = np.mean(self.signal)
+        # Make sure mean is 0. I found this the easiest, as we dont have to deal 
+        # with the zero frequency with an unusual spike
+        self.signal = self.signal - self.signal_mean
+
+        N = len(self.signal)
+        # M = 2**int(np.ceil(np.log2(N)))
+        M = 2**25
+
+        # Apply window
+        processed_signal = self.signal
+        if self.windowing_enabled:
+            window = np.hanning(N)
+            processed_signal = self.signal * window 
+
+        # Perform FFT
+        fhat = np.fft.fft(processed_signal, M) 
+        fhat = fhat[0:M//2+1] # only take positive frequencies
+        # Extract relevant quantities
+        self.amplitudes = (2/N * abs(fhat)) # multiply by two to make up for negative counterpart
+        self.arguments = np.angle(fhat)
+        self.frequencies = np.arange(M//2 + 1)/(M*dt)
+
+        if self.windowing_enabled:  #Windowing halves the amplitudes
+            self.amplitudes *= 2
+
+    def build_model(self):
+        indices = get_peaks(self.amplitudes, 30)
+        self.frequencies = self.frequencies[indices]
+        self.amplitudes = self.amplitudes[indices]
+        self.arguments = self.arguments[indices]
+        self.omegas = 2*np.pi*self.frequencies
+        
+        # plt.plot(frequencies, amplitudes)
+        # plt.scatter(selected_frequencies, selected_amplitudes, color='red')
+        # plt.xlabel('Frequency')
+        # plt.ylabel('Amplitude')
+        # plt.grid()
+        # plt.show()
+
+    def predict_array(self, t_values):
+        t_col = t_values[:, np.newaxis] 
+        return self.signal_mean + np.sum(self.amplitudes * np.cos(self.omegas * t_col + self.arguments), axis=1)
+    def predict_single(self, t):
+        """Predicts the tide for a given time t"""
+        return self.signal_mean + np.sum(self.amplitudes*np.cos(self.omegas*t + self.arguments))
+
+####################
+
+def above_150(data):
+    currently_above = False
+    intervals = []
+    i1 = -1
+    i2 = -1
+    for i, x in enumerate(data):
+        if currently_above:
+            if x < 150:
+                i2 = i-1
+                currently_above = False
+                intervals.append([i1,i2])
+        else:
+            if x >= 150:
+                i1 = i
+                currently_above = True
+
+    if currently_above:
+        i2 = len(data)-1
+        intervals.append([i1, i2])
+    return intervals
 
 ###############################
 
@@ -51,109 +126,45 @@ def get_peaks(amplitudes, N):
     top_peaks_indices = peaks[np.argsort(amplitudes[peaks])[-N:]]
     return top_peaks_indices
 
-
-def build_model(frequencies, amplitudes, arguments, mean):
-    """Creates a model of the given frequencies, amplitudes and arguments of the FFT, and mean of the signal"""
-    
-    indices = get_peaks(amplitudes, 100)
-
-    selected_frequencies = frequencies[indices]
-    selected_amplitudes = amplitudes[indices]
-    selected_arguments = arguments[indices]
-    omegas = 2*np.pi*selected_frequencies
-    
-    # plt.plot(frequencies, amplitudes)
-    # plt.scatter(selected_frequencies, selected_amplitudes, color='red')
-    # plt.xlabel('Frequency')
-    # plt.ylabel('Amplitude')
-    # plt.grid()
-    # plt.show()
-
-    return (omegas, selected_amplitudes, selected_arguments, mean)
-    
 ###############################
-def predict_single(model, t):
-    """Predicts the signal for a given time t"""
-    w, A, phi, mu = model # omegas, amplitudes, arguments (angles)
-    return mu + np.sum(A*np.cos(w*t + phi))
 
-def predict_array(model, t_values):
-    w, A, phi, mu = model
-    t_col = t_values[:, np.newaxis] 
-    
-    return mu + np.sum(A * np.cos(w * t_col + phi), axis=1)
-
-def rmse(model, actual, k):
+def rmse(model: TideModel, k):
     """Computes the Root Mean Squared Error of the prediction model."""
-    assert k <= len(actual)
-    N = len(actual)
-    indices = np.linspace(0, N-1, k).astype(int)
+    true_signal = model.get_total_signal()
+    
+    assert k <= model.validation_interval[1] - model.validation_interval[0]
+    
+    pred_indices = np.linspace(model.validation_interval[0], model.validation_interval[1]-1, k).astype(int)
+    pred_times = pred_indices * dt
 
-    prediction = predict_array(model, (indices*dt))
-    actual_subsamples = actual[indices]
-    errors = prediction - actual_subsamples
+    prediction = model.predict_array(pred_times)
+    true_signal_subsamples = true_signal[pred_indices]
+    errors = prediction - true_signal_subsamples
     rmse = np.sqrt(np.mean(errors**2))
     return rmse
 
-def compute_spaced_accuracy(model, actual, dt, step=10, n=None):
-    """Computes RMSE using predict_single."""
-    if n is None:
-        n = len(actual)
-    rmse_values = []
-    for k in range(step, n+1, step):
-        errors = []
-        for i in range(k):
-            t = i * dt
-            prediction = predict_single(model, t)
-            errors.append(prediction - actual[i])
-        errors = np.array(errors)
-        rmse = np.sqrt(np.mean(errors**2))
-        rmse_values.append(rmse)
-    return rmse_values
+##################
 
-
-
-def above_150 (data):
-    currently_above = False
-    intervals = []
-    x1 = -1
-    x2 = -1
-    for t, x in enumerate(data):
-        if currently_above:
-            if x < 150:
-                x2 = t-1
-                currently_above = False
-                intervals.append([x1,x2])
-        else:
-            if x >= 150:
-                x1 = t
-                currently_above = True
-
-    if currently_above:
-        x2 = len(data)-1
-        intervals.append([x1, x2])
-    # x1 and x2 /6  = hours
-    return intervals
-
+def index_to_time(start_time, index):
+    return start_time + datetime.timedelta(minutes=index*dt)
+def time_to_index(start_time, index):
+    return start_time - datetime.timedelta(minutes=index*dt)
 
 
 def main():
-    indices, times, tide = io.read_data("walsoorden2004-2024.csv")
-    
-    # indices, times, tide = io.generate_cosine(10000, dt)
+    raw_signal, start_time = io.read_data("walsoorden2004-2024.csv")
 
-    freq_mins, amplitudes, arguments, mean = frequency_analysis(tide)
-    # start,stop = (0.0013415, 0.0013422)
-    # plot_frequencies(freq_mins, amplitudes, start, stop)
+    model = TideModel(raw_signal, start_time, 0.9, windowing=True)
 
-    model = build_model(freq_mins, amplitudes, arguments, mean)
+    # times = np.arange(model.validation_interval[0], model.validation_interval[1]-1)
+    prediction = model.predict_array(np.arange(0, 500)*dt)
 
-    prediction = predict_array(model, (np.arange(15000, 16000)*dt))
-    plot_comparison(np.arange(15000, 16000), (mean + tide)[15000:16000], prediction)
+    print(above_150(prediction))
+    print(above_150(model.validation_signal))
 
-    print(f"RMSE: {rmse(model, mean + tide, 10000):.3f}")
-    print(f"Intervals{above_150(tide)}")
+    # plot_comparison(model.get_total_signal()[0:500], prediction)
 
+    print(f"RMSE: {rmse(model, 10000):.3f}")
 
 # Run script
 if __name__ == "__main__":
