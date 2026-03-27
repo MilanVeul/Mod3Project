@@ -1,5 +1,5 @@
 import numpy as np
-import datetime
+from datetime import datetime
 from plot import *
 import model_io as io
 from scipy.signal import find_peaks
@@ -13,14 +13,14 @@ class TideModel:
     trainings_interval = []
     validation_interval = []
 
-    start_time: datetime.datetime = None
+    start_time: datetime = None
     windowing_enabled = False
 
     frequencies = None
     amplitudes = None
     arguments = None
 
-    def __init__(self, total_signal, start_time: datetime.datetime, training_ratio, windowing=False):
+    def __init__(self, total_signal, start_time: datetime, training_ratio, windowing=False):
         split_index = int(len(total_signal) * training_ratio)
         self.signal = total_signal[:split_index]
         self.validation_signal = total_signal[split_index:]
@@ -79,10 +79,10 @@ class TideModel:
 
     def predict_array(self, t_values):
         t_col = t_values[:, np.newaxis] 
-        return self.signal_mean + np.sum(self.amplitudes * np.cos(self.omegas * t_col + self.arguments), axis=1)
+        return np.sum(self.amplitudes * np.cos(self.omegas * t_col + self.arguments), axis=1)
     def predict_single(self, t):
         """Predicts the tide for a given time t"""
-        return self.signal_mean + np.sum(self.amplitudes*np.cos(self.omegas*t + self.arguments))
+        return np.sum(self.amplitudes*np.cos(self.omegas*t + self.arguments))
 
 ####################
 
@@ -142,24 +142,47 @@ def rmse(model: TideModel, k):
 
 def index_to_time(start_time, index):
     return start_time + datetime.timedelta(minutes=index*dt)
-def time_to_index(start_time, index):
-    return start_time - datetime.timedelta(minutes=index*dt)
+def time_to_index(start_time, time):
+    delta = time - start_time
+    return delta.total_seconds() / (dt * 60)
 
+def tui(model: TideModel):
+    print("Type 'exit' to terminate.")
+    while True:
+        print("\nEnter a timestamp (YYYY-MM-DD hh:mm):")
+        inp_text = input()
+        if inp_text.lower() == 'exit': break
+        
+        try:
+            time = datetime.strptime(inp_text, "%Y-%m-%d %H:%M")
+        except ValueError:
+            print("Invalid format. Please use: YYYY-MM-DD hh:mm")
+            continue
+        if time is None:
+            print("Invalid format. Please use: YYYY-MM-DD hh:mm")
+            continue
+            
+        relative_time = time_to_index(model.start_time, time)
+        prediction = model.predict_single(relative_time)
+        print(f"Prediction = {prediction:.0f}cm, Accessible = {prediction>=150}")
 
 def main():
+    print("Reading data...")
     raw_signal, start_time = io.read_data("walsoorden2004-2024.csv")
-
+    print("Building model...")
     model = TideModel(raw_signal, start_time, 0.9, windowing=True)
 
     # times = np.arange(model.validation_interval[0], model.validation_interval[1]-1)
-    prediction = model.predict_array(np.arange(0, 500)*dt)
+    # prediction = model.predict_array(np.arange(0, 500)*dt)
+
+    tui(model)
 
     # print(above_150(prediction))
     # print(above_150(model.validation_signal))
 
-    plot_comparison(model.get_total_signal()[0:500], prediction)
+    # plot_comparison(model.get_total_signal()[0:500], prediction)
 
-    print(f"RMSE: {rmse(model, 10000):.3f}")
+    # print(f"RMSE: {rmse(model, 10000):.3f}")
 
 # Run script
 if __name__ == "__main__":
