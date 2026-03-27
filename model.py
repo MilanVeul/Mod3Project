@@ -9,7 +9,6 @@ dt = 10 # In minutes
 class TideModel:
     signal = 0
     validation_signal = 0
-    signal_mean = 0
 
     trainings_interval = []
     validation_interval = []
@@ -36,16 +35,12 @@ class TideModel:
         self.build_model()
 
     def get_signal(self):
-        return self.signal + self.signal_mean
+        return self.signal
     def get_total_signal(self):
         return np.concatenate((self.get_signal(), self.validation_signal))
 
     def frequency_analysis(self):
         """Performs a frequency analysis of a given signal using FFT"""
-        self.signal_mean = np.mean(self.signal)
-        # Make sure mean is 0. I found this the easiest, as we dont have to deal 
-        # with the zero frequency with an unusual spike
-        self.signal = self.signal - self.signal_mean
 
         N = len(self.signal)
         # M = 2**int(np.ceil(np.log2(N)))
@@ -159,10 +154,10 @@ def main():
     # times = np.arange(model.validation_interval[0], model.validation_interval[1]-1)
     prediction = model.predict_array(np.arange(0, 500)*dt)
 
-    print(above_150(prediction))
-    print(above_150(model.validation_signal))
+    # print(above_150(prediction))
+    # print(above_150(model.validation_signal))
 
-    # plot_comparison(model.get_total_signal()[0:500], prediction)
+    plot_comparison(model.get_total_signal()[0:500], prediction)
 
     print(f"RMSE: {rmse(model, 10000):.3f}")
 
