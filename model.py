@@ -86,25 +86,30 @@ class TideModel:
 
 ####################
 
-def above_150(data):
+def accessible_windows(data):
+    if np.shape(data)[0] != 2:
+        raise ValueError("Data should have two columns: time and signal")
+    
     currently_above = False
     intervals = []
-    i1 = -1
-    i2 = -1
-    for i, x in enumerate(data):
+    t1 = None
+    t2 = None
+    for i in range(len(data)):
+        t = data[i:0]
+        x = data[i:1]
         if currently_above:
             if x < 150:
-                i2 = i-1
+                t2 = data[i-1:0]
                 currently_above = False
-                intervals.append([i1,i2])
+                intervals.append([t1,t2])
         else:
             if x >= 150:
-                i1 = i
+                t1 = t
                 currently_above = True
 
     if currently_above:
-        i2 = len(data)-1
-        intervals.append([i1, i2])
+        t2 = data[-1, 0]
+        intervals.append([t1, t2])
     return intervals
 
 ###############################
@@ -120,6 +125,10 @@ def get_peaks(amplitudes, N):
     # Get the top K from the ACTUAL peaks only
     top_peaks_indices = peaks[np.argsort(amplitudes[peaks])[-N:]]
     return top_peaks_indices
+
+def compare_windows(model: TideModel, time_interval):
+    times = np.arange(time_interval[0], time_interval[1], step=dt)
+    prediction = model.predict_array(times)
 
 ###############################
 
@@ -175,10 +184,10 @@ def main():
     # times = np.arange(model.validation_interval[0], model.validation_interval[1]-1)
     # prediction = model.predict_array(np.arange(0, 500)*dt)
 
-    tui(model)
+    # tui(model)
 
-    # print(above_150(prediction))
-    # print(above_150(model.validation_signal))
+    print(above_150(prediction))
+    print(above_150(model.validation_signal))
 
     # plot_comparison(model.get_total_signal()[0:500], prediction)
 
