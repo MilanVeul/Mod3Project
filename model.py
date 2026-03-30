@@ -136,7 +136,7 @@ def rmse(model: TideModel, k):
     """Computes the Root Mean Squared Error of the prediction model."""
     true_signal = model.get_total_signal()
     
-    assert k <= model.validation_interval[1] - model.validation_interval[0]
+    assert k <= (model.validation_interval[1] - model.validation_interval[0])
     
     pred_indices = np.linspace(model.validation_interval[0], model.validation_interval[1]-1, k).astype(int)
     pred_times = pred_indices * dt
@@ -184,10 +184,7 @@ def main():
     # times = np.arange(model.validation_interval[0], model.validation_interval[1]-1)
     # prediction = model.predict_array(np.arange(0, 500)*dt)
 
-    # tui(model)
-
-    print(above_150(prediction))
-    print(above_150(model.validation_signal))
+    tui(model)
 
     # plot_comparison(model.get_total_signal()[0:500], prediction)
 
