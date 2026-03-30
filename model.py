@@ -34,8 +34,6 @@ class TideModel:
         self.frequency_analysis()
         self.build_model()
 
-    def get_signal(self):
-        return self.signal
     def get_total_signal(self):
         return np.concatenate((self.get_signal(), self.validation_signal))
 
@@ -77,6 +75,15 @@ class TideModel:
         # plt.grid()
         # plt.show()
 
+    def get_signal(self, index_times):
+        indices = index_times/dt
+        signal = []
+        for i in indices:
+            t = (i - np.floor(i))
+            val = self.signal[int(np.floor(i))]*(1-t) + self.signal[int(np.ceil(i))]*t
+            signal.append(val)
+        return np.array(signal)
+
     def predict_array(self, t_values):
         t_col = t_values[:, np.newaxis] 
         return np.sum(self.amplitudes * np.cos(self.omegas * t_col + self.arguments), axis=1)
@@ -85,9 +92,16 @@ class TideModel:
         return np.sum(self.amplitudes*np.cos(self.omegas*t + self.arguments))
 
 ####################
+def compare_windows(model: TideModel, time_interval):
+    times = np.arange(time_interval[0], time_interval[1], step=1)
+    prediction = model.predict_array(times)
+    pred_windows = accessible_windows(np.column_stack((times, prediction)))
+    actual_windows = accessible_windows(np.column_stack((times, model.get_signal(times))))
+    return rmse(pred_windows.ravel(), actual_windows.ravel())
+
 
 def accessible_windows(data):
-    if np.shape(data)[0] != 2:
+    if np.shape(data)[1] != 2:
         raise ValueError("Data should have two columns: time and signal")
     
     currently_above = False
@@ -95,11 +109,11 @@ def accessible_windows(data):
     t1 = None
     t2 = None
     for i in range(len(data)):
-        t = data[i:0]
-        x = data[i:1]
+        t = data[i,0]
+        x = data[i,1]
         if currently_above:
             if x < 150:
-                t2 = data[i-1:0]
+                t2 = data[i-1,0]
                 currently_above = False
                 intervals.append([t1,t2])
         else:
@@ -110,7 +124,7 @@ def accessible_windows(data):
     if currently_above:
         t2 = data[-1, 0]
         intervals.append([t1, t2])
-    return intervals
+    return np.array(intervals)
 
 ###############################
 
@@ -126,13 +140,10 @@ def get_peaks(amplitudes, N):
     top_peaks_indices = peaks[np.argsort(amplitudes[peaks])[-N:]]
     return top_peaks_indices
 
-def compare_windows(model: TideModel, time_interval):
-    times = np.arange(time_interval[0], time_interval[1], step=dt)
-    prediction = model.predict_array(times)
 
 ###############################
 
-def rmse(model: TideModel, k):
+def model_rmse(model: TideModel, k):
     """Computes the Root Mean Squared Error of the prediction model."""
     true_signal = model.get_total_signal()
     
@@ -143,7 +154,10 @@ def rmse(model: TideModel, k):
 
     prediction = model.predict_array(pred_times)
     true_signal_subsamples = true_signal[pred_indices]
-    errors = prediction - true_signal_subsamples
+    return rmse(prediction, true_signal_subsamples)
+
+def rmse(arr1, arr2):
+    errors = arr1 - arr2
     rmse = np.sqrt(np.mean(errors**2))
     return rmse
 
@@ -180,11 +194,11 @@ def main():
     raw_signal, start_time = io.read_data("walsoorden2004-2024.csv")
     print("Building model...")
     model = TideModel(raw_signal, start_time, 0.9, windowing=True)
-
+    print(compare_windows(model, [0, 5000]))
+    
     # times = np.arange(model.validation_interval[0], model.validation_interval[1]-1)
-    # prediction = model.predict_array(np.arange(0, 500)*dt)
 
-    tui(model)
+    # tui(model)
 
     # plot_comparison(model.get_total_signal()[0:500], prediction)
 
