@@ -14,7 +14,7 @@ class TideModel:
     validation_interval = []
 
     start_time: datetime = None
-    windowing_enabled = False
+    windowing_enabled = True
 
     frequencies = None
     amplitudes = None
@@ -35,15 +35,16 @@ class TideModel:
         self.build_model()
 
     def get_total_signal(self):
-        return np.concatenate((self.get_signal(), self.validation_signal))
+        return np.concatenate((self.signal, self.validation_signal))
 
     def frequency_analysis(self):
         """Performs a frequency analysis of a given signal using FFT"""
 
+        
         N = len(self.signal)
-        # M = 2**int(np.ceil(np.log2(N)))
+        #M = N
+        #M = 2**int(np.ceil(np.log2(N)))
         M = 2**25
-
         # Apply window
         processed_signal = self.signal
         if self.windowing_enabled:
@@ -62,7 +63,7 @@ class TideModel:
             self.amplitudes *= 2
 
     def build_model(self):
-        indices = get_peaks(self.amplitudes, 30)
+        indices = get_peaks(self.amplitudes, 100)
         self.frequencies = self.frequencies[indices]
         self.amplitudes = self.amplitudes[indices]
         self.arguments = self.arguments[indices]
@@ -97,7 +98,18 @@ def compare_windows(model: TideModel, time_interval):
     prediction = model.predict_array(times)
     pred_windows = accessible_windows(np.column_stack((times, prediction)))
     actual_windows = accessible_windows(np.column_stack((times, model.get_signal(times))))
-    return rmse(pred_windows.ravel(), actual_windows.ravel())
+    print(len(prediction))
+    print(len(model.get_signal(times)))
+    #return rmse(pred_windows.ravel(), actual_windows.ravel())
+    pred_durations = pred_windows[:,1] - pred_windows[:,0]
+    actual_durations = actual_windows[:,1] - actual_windows[:,0]
+
+    min_len = min(len(pred_durations), len(actual_durations))
+
+    return rmse(
+    pred_durations[:min_len],
+    actual_durations[:min_len]
+)
 
 
 def accessible_windows(data):
@@ -189,20 +201,22 @@ def tui(model: TideModel):
         prediction = model.predict_single(relative_time)
         print(f"Prediction = {prediction:.0f}cm, Accessible = {prediction>=150}")
 
+
+
 def main():
     print("Reading data...")
     raw_signal, start_time = io.read_data("walsoorden2004-2024.csv")
     print("Building model...")
-    model = TideModel(raw_signal, start_time, 0.9, windowing=True)
-    print(compare_windows(model, [0, 5000]))
-    
+    model = TideModel(raw_signal, start_time, 0.9, windowing=False)
+    print(compare_windows(model, [0, 100000]))
+    print(model_rmse(model,1000))
     # times = np.arange(model.validation_interval[0], model.validation_interval[1]-1)
 
     # tui(model)
 
     # plot_comparison(model.get_total_signal()[0:500], prediction)
 
-    # print(f"RMSE: {rmse(model, 10000):.3f}")
+    #print(f"RMSE: {rmse(model, 10000):.3f}")
 
 # Run script
 if __name__ == "__main__":
