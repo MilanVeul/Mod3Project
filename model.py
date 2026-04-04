@@ -42,8 +42,8 @@ class TideModel:
 
         
         N = len(self.signal)
-        #M = N
-        #M = 2**int(np.ceil(np.log2(N)))
+        # M = N
+        # M = 2**int(np.ceil(np.log2(N)))
         M = 2**25
         # Apply window
         processed_signal = self.signal
@@ -56,6 +56,7 @@ class TideModel:
         fhat = fhat[0:M//2+1] # only take positive frequencies
         # Extract relevant quantities
         self.amplitudes = (2/N * abs(fhat)) # multiply by two to make up for negative counterpart
+        self.amplitudes[0] /= 2 # DC component should not be doubled
         self.arguments = np.angle(fhat)
         self.frequencies = np.arange(M//2 + 1)/(M*dt)
 
@@ -98,8 +99,6 @@ def compare_windows(model: TideModel, time_interval):
     prediction = model.predict_array(times)
     pred_windows = accessible_windows(np.column_stack((times, prediction)))
     actual_windows = accessible_windows(np.column_stack((times, model.get_signal(times))))
-    print(len(prediction))
-    print(len(model.get_signal(times)))
     #return rmse(pred_windows.ravel(), actual_windows.ravel())
     pred_durations = pred_windows[:,1] - pred_windows[:,0]
     actual_durations = actual_windows[:,1] - actual_windows[:,0]
@@ -107,9 +106,9 @@ def compare_windows(model: TideModel, time_interval):
     min_len = min(len(pred_durations), len(actual_durations))
 
     return rmse(
-    pred_durations[:min_len],
-    actual_durations[:min_len]
-)
+        pred_durations[:min_len],
+        actual_durations[:min_len]
+    )
 
 
 def accessible_windows(data):
@@ -207,14 +206,15 @@ def main():
     print("Reading data...")
     raw_signal, start_time = io.read_data("walsoorden2004-2024.csv")
     print("Building model...")
-    model = TideModel(raw_signal, start_time, 0.9, windowing=False)
-    print(compare_windows(model, [0, 100000]))
-    print(model_rmse(model,1000))
+    model = TideModel(raw_signal, start_time, 0.9, windowing=True)
+    print("Diff", compare_windows(model, [0, 100000]))
+    print("Window", model_rmse(model,1000))
     # times = np.arange(model.validation_interval[0], model.validation_interval[1]-1)
 
     # tui(model)
 
-    # plot_comparison(model.get_total_signal()[0:500], prediction)
+    prediction = model.predict_array(np.arange(0, 500, step=1)*dt)
+    plot_comparison(model.get_total_signal()[0:500], prediction)
 
     #print(f"RMSE: {rmse(model, 10000):.3f}")
 
