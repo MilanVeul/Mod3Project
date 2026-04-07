@@ -5,7 +5,7 @@ import model_io as io
 from scipy.signal import find_peaks
 
 dt = 10 # In minutes
-NUM_WAVES = 15
+NUM_WAVES = 20
 
 class TideModel:
     signal = 0
@@ -61,12 +61,12 @@ class TideModel:
         fhat = fhat[0:M//2+1] # only take positive frequencies
         # Extract relevant quantities
         self.amplitudes = (2/N * abs(fhat)) # multiply by two to make up for negative counterpart
-        self.amplitudes[0] = 0 # Since we extracted the mean
+        self.amplitudes[0] = 0 # Since we subtracted the mean
         self.arguments = np.angle(fhat)
         self.frequencies = np.arange(M//2 + 1)/(M*dt)
 
         if self.windowing_enabled:  # Windowing halves the amplitudes
-            self.amplitudes *= 2
+            self.amplitudes *= 2    
 
     def build_model(self):
         indices = get_peaks(self.amplitudes, NUM_WAVES)
@@ -81,7 +81,25 @@ class TideModel:
         # plt.ylabel('Amplitude')
         # plt.grid()
         # plt.show()
+        self.print_max_freqs()
 
+
+    def print_max_freqs(self):
+        # Get indices of the 10 largest amplitudes
+        top_10_indices = np.argsort(self.amplitudes)[-10:][::-1]
+
+        print(f"{'Rank':<5} | {'Freq (1/day)':<12} | {'Period (hours)':<15} | {'Amplitude (cm)':<15}")
+        print("-" * 55)
+
+        for i, idx in enumerate(top_10_indices, 1):
+            freq = self.frequencies[idx] * 60 * 24
+            amp = self.amplitudes[idx]
+            
+            # Calculate period in hours (1 / (freq * 60))
+            period_hours = 1 / (freq / 24) if freq != 0 else float('inf')
+            
+            print(f"{i:<5} | {freq:<12.2f} | {period_hours:<15.2f} | {amp:<15.2f}")
+    
     def get_signal(self, index_times):
         signal = self.signal + self.mean
         indices = index_times/dt
@@ -115,24 +133,6 @@ def compare_windows(model: TideModel):
         pred_durations[:min_len],
         actual_durations[:min_len]
     )
-
-def compare_windows_old(model: TideModel, time_interval):
-    times = np.arange(time_interval[0], time_interval[1], step=1)
-    prediction = model.predict_array(times)
-    pred_windows = accessible_windows(np.column_stack((times, prediction)))
-    actual_windows = accessible_windows(np.column_stack((times, model.get_signal(times))))
-    print(len(prediction))
-    print(len(model.get_signal(times)))
-    #return rmse(pred_windows.ravel(), actual_windows.ravel())
-    pred_durations = pred_windows[:,1] - pred_windows[:,0]
-    actual_durations = actual_windows[:,1] - actual_windows[:,0]
-
-    min_len = min(len(pred_durations), len(actual_durations))
-
-    return rmse(
-    pred_durations[:min_len],
-    actual_durations[:min_len]
-)
 
 
 def accessible_windows(data):
@@ -170,7 +170,7 @@ def get_max_amplitudes(amplitudes, N):
 
 def get_peaks(amplitudes, N):
     # Find all local maxima
-    peaks, _ = find_peaks(amplitudes, height=0) 
+    peaks, _ = find_peaks(amplitudes, height=0, distance=1000)
     # Get the top K from the ACTUAL peaks only
     top_peaks_indices = peaks[np.argsort(amplitudes[peaks])[-N:]]
     return top_peaks_indices
@@ -240,7 +240,7 @@ def main():
     # prediction = model.predict_array(np.arange(0, 500, step=1)*dt)
     # plot_comparison(model.get_total_signal()[0:500], prediction)
 
-    #print(f"RMSE: {rmse(model, 10000):.3f}")
+    # print(f"RMSE: {rmse(model, 10000):.3f}")
 
 # Run script
 if __name__ == "__main__":
