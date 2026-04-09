@@ -1,5 +1,5 @@
 import numpy as np
-from datetime import datetime
+import datetime
 from plot import *
 import model_io as io
 from scipy.signal import find_peaks
@@ -37,7 +37,7 @@ class TideModel:
         self.build_model()
 
     def get_total_signal(self):
-        return np.concatenate((self.mean + self.signal, self.validation_signal))
+        return np.concatenate((self.signal + self.mean, self.validation_signal))
 
     def frequency_analysis(self):
         """Performs a frequency analysis of a given signal using FFT"""
@@ -101,8 +101,11 @@ class TideModel:
             print(f"{i:<5} | {freq:<12.2f} | {period_hours:<15.2f} | {amp:<15.2f}")
     
     def get_signal(self, index_times):
-        signal = self.signal + self.mean
+        signal = self.get_total_signal()
+        # signal = self.signal + self.mean
         indices = index_times/dt
+
+        print(index_times)
         s = []
         for i in indices:
             t = (i - np.floor(i))
@@ -188,7 +191,7 @@ def model_rmse(model: TideModel, k):
     pred_times = pred_indices * dt
 
     prediction = model.predict_array(pred_times)
-    true_signal_subsamples = true_signal[pred_indices]
+    true_signal_subsamples = model.get_total_signal()[pred_indices]
     return rmse(prediction, true_signal_subsamples)
 
 def rmse(arr1, arr2):
@@ -207,38 +210,58 @@ def time_to_index(start_time, time):
 def tui(model: TideModel):
     print("Type 'exit' to terminate.")
     while True:
-        print("\nEnter a timestamp (YYYY-MM-DD hh:mm):")
+        print("\nEnter a date (YYYY-MM-DD):")
         inp_text = input()
         if inp_text.lower() == 'exit': break
         
         try:
-            time = datetime.strptime(inp_text, "%Y-%m-%d %H:%M")
+            # Parse only the date
+            target_date = datetime.datetime.strptime(inp_text, "%Y-%m-%d").date()
         except ValueError:
-            print("Invalid format. Please use: YYYY-MM-DD hh:mm")
+            print("Invalid format. Please use: YYYY-MM-DD")
             continue
-        if time is None:
-            print("Invalid format. Please use: YYYY-MM-DD hh:mm")
-            continue
-            
-        relative_time = time_to_index(model.start_time, time)
-        prediction = model.predict_single(relative_time)
-        print(f"Prediction = {prediction:.0f}cm, Accessible = {prediction>=150}")
 
+        accessible_window_on_day(target_date, model)
+
+def accessible_window_on_day(target_date, model, precision_dt=1):
+    days_diff = (target_date - model.start_time.date()).days
+    start_minutes = days_diff * 24 * 60
+    end_minutes = start_minutes + 24 * 60
+    
+    times_in_minutes = np.arange(start_minutes, end_minutes, precision_dt)
+
+    predictions = model.predict_array(times_in_minutes)
+    
+    daily_data = np.column_stack((times_in_minutes, predictions))
+    windows = accessible_windows(daily_data)
+    
+    print(f"\nAccessible Windows for {target_date} (Precision: {precision_dt} min):")
+    print(f"{'Start Time':<12} | {'End Time':<12} | {'Duration'}")
+    print("-" * 40)
+    
+    for w in windows:
+        # Convert minutes directly to timestamps
+        win_start = model.start_time + datetime.timedelta(minutes=float(w[0]))
+        win_end = model.start_time + datetime.timedelta(minutes=float(w[1]))
+        duration_mins = w[1] - w[0]
+        
+        print(f"{win_start.strftime('%H:%M'):<12} | "
+              f"{win_end.strftime('%H:%M'):<12} | "
+              f"{duration_mins:.1f} mins")
 
 
 def main():
     print("Reading data...")
-    raw_signal, start_time = io.read_data("walsoorden2004-2024.csv")
+    raw_signal, start_time = io.read_data("data/walsoorden2004-2024.csv")
     print("Building model...")
-    model = TideModel(raw_signal, start_time, 0.9, windowing=True)
-    print("Window", compare_windows(model))
-    print("Diff", model_rmse(model,1000))
-    # times = np.arange(model.validation_interval[0], model.validation_interval[1]-1)
+    model = TideModel(raw_signal, start_time, 1.0, windowing=True)
+    # print("Window", compare_windows(model))
+    # print("Diff", model_rmse(model, 1000))
 
-    # tui(model)
+    tui(model)
 
-    # prediction = model.predict_array(np.arange(0, 500, step=1)*dt)
-    # plot_comparison(model.get_total_signal()[0:500], prediction)
+    # prediction = model.predict_array(np.arange(1000000, 1000500, step=1)*dt)
+    # plot_comparison(model.get_total_signal()[1000000:1000500], prediction)
 
     # print(f"RMSE: {rmse(model, 10000):.3f}")
 

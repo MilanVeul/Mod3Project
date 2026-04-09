@@ -7,8 +7,8 @@ def read_data(file):
 
     start_time = data[0,1]
     start_time = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
-    signal = data[:,2].astype(int)
-
+    signal = data[:,2].astype(float).astype(int)
+    
     avarage_out_invalid_measurements(signal)
 
     return signal, start_time
